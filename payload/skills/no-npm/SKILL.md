@@ -98,10 +98,10 @@ package's **lifecycle script** that runs automatically. Three levels of defense
 (from soft to paranoid):
 
 1. **Default (already active).** pnpm 10+ does not run dependency build scripts
-   outside the allowlist. In P1 CRM the allowlist is `pnpm-workspace.yaml →
-   allowBuilds` (`core-js`, `esbuild`). A new package that wants a `postinstall`
-   is skipped by default with a warning — and `pnpm approve-builds` shows who it
-   is. **pnpm 11 added more defaults:** `blockExoticSubdeps` (blocks transitive
+   outside the allowlist — you declare it in `pnpm-workspace.yaml → allowBuilds`
+   (e.g. `esbuild`). A new package that wants a `postinstall` is skipped by
+   default with a warning — and `pnpm approve-builds` shows who it is.
+   **pnpm 11 added more defaults:** `blockExoticSubdeps` (blocks transitive
    deps from git/tarball sources) and `trustPolicy` (`no-downgrade` — won't
    install a package whose trust level dropped vs earlier releases). So pnpm 11
    is stricter out of the box than any manual npm flag.

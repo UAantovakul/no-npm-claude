@@ -1,53 +1,55 @@
 ---
 name: no-npm
-description: Блокувати npm/npx/yarn — пропонувати pnpm-еквівалент. Тригери: команда з npm/npx/yarn як окреме слово.
+description: Block npm/npx/yarn and suggest the pnpm equivalent. Triggers when a command uses npm/npx/yarn as a standalone word.
 ---
 
-# no-npm — Заборона npm/npx/yarn, тільки pnpm
+# no-npm — Block npm/npx/yarn, pnpm only
 
-## Чому існує цей skill
+## Why this skill exists
 
-npm-екосистема пройшла через серію масштабних supply-chain атак
-(Shai-Hulud вересень 2025, Shai-Hulud 2.0 листопад 2025, Mini Shai-Hulud
-травень 2026). Спільний вектор усіх трьох — **lifecycle-скрипти** пакета
-(`preinstall` / `install` / `postinstall`), які менеджер запускає
-**автоматично** під час встановлення. Саме тут спрацьовує черв'як.
+The npm ecosystem went through a series of large supply-chain attacks
+(Shai-Hulud Sep 2025, Shai-Hulud 2.0 Nov 2025, Mini Shai-Hulud May 2026).
+The common vector across all three is a package's **lifecycle scripts**
+(`preinstall` / `install` / `postinstall`), which the package manager runs
+**automatically** during install. That is where the worm executes.
 
-pnpm 10+ за замовчуванням **НЕ** запускає build-скрипти залежностей поза
-явним allowlist (`onlyBuiltDependencies` / `allowBuilds` у
-`pnpm-workspace.yaml`) — лише виводить warning. Це закриває головний вектор.
-npm же запускає **все** без питань — тому npm заборонено, а pnpm — ні.
+pnpm 10+ by default does **NOT** run dependency build scripts outside an
+explicit allowlist (`onlyBuiltDependencies` / `allowBuilds` in
+`pnpm-workspace.yaml`) — it only prints a warning. That closes the primary
+vector. npm runs **everything** without asking — which is why npm is blocked
+and pnpm is not.
 
-> ✅ **Більше того — pnpm 11+** (реліз ~квітень 2026) за замовчуванням вмикає
-> **`minimumReleaseAge=1440`** (24-год cooldown на свіжі версії) **і**
-> **`blockExoticSubdeps`**. Тобто на pnpm 11 закриті обидва вектори — і
-> «виконання» (allowlist), і «потрапляння» (cooldown) — з коробки, без налаштувань.
-> До v11 cooldown був `0` (opt-in). Джерело: <https://pnpm.io/settings> («Default:
-> 1440 (since v11)»).
+> ✅ **Furthermore — pnpm 11+** (released ~April 2026) enables
+> **`minimumReleaseAge=1440`** (a 24h cooldown on fresh versions) **and**
+> **`blockExoticSubdeps`** by default. So on pnpm 11 both vectors are closed —
+> execution (allowlist) and ingress (cooldown) — out of the box, no config.
+> Before v11 the cooldown was `0` (opt-in). Source: <https://pnpm.io/settings>
+> ("Default: 1440 (since v11)").
 >
-> ⚠️ `pnpm config get minimumReleaseAge` → `undefined` **НЕ** означає «вимкнено»:
-> `config get` показує лише *явну* конфігурацію, а не вбудований дефолт v11.
+> ⚠️ `pnpm config get minimumReleaseAge` returning `undefined` does **NOT**
+> mean "disabled": `config get` only echoes *explicit* config, not the v11
+> built-in default.
 
-Глобальне рішення користувача: **жодних npm/npx/yarn у цьому оточенні**.
+The user's global decision: **no npm/npx/yarn in this environment.**
 
-## Коли зʼявляється npm/npx/yarn (від мене чи від користувача)
+## When npm/npx/yarn appears (from me or from the user)
 
-Тільки-но команда містить `npm`, `npx` або `yarn` як окреме слово — байдуже,
-я (Claude) збираюся її запустити чи користувач сам про неї просить:
+As soon as a command contains `npm`, `npx`, or `yarn` as a standalone word —
+whether I (Claude) am about to run it or the user asks for it directly:
 
-1. **НЕ запускати.**
-2. Видати попередження:
+1. **Do NOT run it.**
+2. Issue a warning:
 
-   > **⛔ NPM ЗАБОРОНЕНО У ЦЬОМУ ОТОЧЕННІ. Використовуй pnpm.**
+   > **⛔ NPM IS BLOCKED IN THIS ENVIRONMENT. Use pnpm.**
 
-3. Запропонувати pnpm-еквівалент (таблиця нижче) і запитати підтвердження
-   перед запуском.
+3. Offer the pnpm equivalent (table below) and ask for confirmation before
+   running it.
 
-Якщо користувач справді потребує саме npm — він виконує команду вручну у
-власному терміналі поза Claude Code; hook `block-npm.js` все одно заблокує
-спробу через Bash.
+If the user genuinely needs npm itself, they run the command manually in their
+own terminal outside Claude Code; the `block-npm.js` hook blocks the attempt
+through Bash regardless.
 
-## Таблиця еквівалентів
+## Equivalents table
 
 | npm / npx / yarn | pnpm |
 |---|---|
@@ -57,7 +59,7 @@ npm же запускає **все** без питань — тому npm заб
 | `npm install -g <pkg>` | `pnpm add -g <pkg>` |
 | `npm uninstall <pkg>` / `npm rm <pkg>` | `pnpm remove <pkg>` |
 | `npm update` | `pnpm update` |
-| `npm run <script>` | `pnpm <script>` (або `pnpm run <script>`) |
+| `npm run <script>` | `pnpm <script>` (or `pnpm run <script>`) |
 | `npm test` | `pnpm test` |
 | `npm ci` | `pnpm install --frozen-lockfile` |
 | `npx <pkg>` | `pnpm dlx <pkg>` |
@@ -68,75 +70,77 @@ npm же запускає **все** без питань — тому npm заб
 | `yarn remove <pkg>` | `pnpm remove <pkg>` |
 | `yarn <script>` | `pnpm <script>` |
 
-### Security / maintenance (їх часто забувають, а вони найкорисніші)
+### Security / maintenance (often forgotten, most useful)
 
-| npm / npx / yarn | pnpm | Навіщо |
+| npm / npx / yarn | pnpm | Why |
 |---|---|---|
-| `npm i --ignore-scripts` | `pnpm install --ignore-scripts` | блок **усіх** lifecycle-скриптів (навіть allowlist) — головний захист проти Shai-Hulud |
-| `npm audit` | `pnpm audit` | скан вразливостей у дереві залежностей |
-| `npm audit fix` | `pnpm audit --fix` | автопідняти вразливі версії |
-| `npm outdated` | `pnpm outdated` | які пакети застаріли |
-| `npm ls <pkg>` / `npm explain` | `pnpm why <pkg>` | **хто** притягнув залежність (audit-провенанс) |
-| `npm dedupe` | `pnpm dedupe` | схлопнути дублікати у lockfile |
-| `npm i -E <pkg>` | `pnpm add -E <pkg>` | pinned exact-версія (без `^`) |
-| — (немає) | `pnpm approve-builds` | інтерактивний рев'ю: **хто** просить запустити build-скрипт → додати в allowlist свідомо |
+| `npm i --ignore-scripts` | `pnpm install --ignore-scripts` | block **all** lifecycle scripts (even the allowlist) — the main Shai-Hulud defense |
+| `npm audit` | `pnpm audit` | scan the dependency tree for vulnerabilities |
+| `npm audit fix` | `pnpm audit --fix` | auto-bump vulnerable versions |
+| `npm outdated` | `pnpm outdated` | which packages are stale |
+| `npm ls <pkg>` / `npm explain` | `pnpm why <pkg>` | **who** pulled a dependency in (audit provenance) |
+| `npm dedupe` | `pnpm dedupe` | collapse duplicates in the lockfile |
+| `npm i -E <pkg>` | `pnpm add -E <pkg>` | pinned exact version (no `^`) |
+| — (none) | `pnpm approve-builds` | interactive review — **which** package wants to run a build script, so you allowlist it consciously |
 
-## Hardening — install-скрипти як вектор атаки
+## Exclusions (do NOT block)
 
-Черв'як потрапляє в систему не через сам факт `install`, а через
-**lifecycle-скрипт** пакета, що виконується автоматично. Три рівні захисту
-(від м'якого до параноїдального):
+- `pnpm` itself (`pnpm` ≠ `npm` as a standalone word — the hook honors the word boundary).
+- The word `npm` inside string literals in code (`"npm" in package.json`) —
+  handled by the hook regex.
+- Mentions of `npm` / `yarn` in markdown / comments / documentation.
+- Commands where `npm` is part of another name: `npmlock`, `pnpm-install`, `unpm`, etc.
 
-1. **Default (вже активно).** pnpm 10+ не запускає build-скрипти залежностей
-   поза allowlist. У P1 CRM allowlist — `pnpm-workspace.yaml → allowBuilds`
-   (`core-js`, `esbuild`). Новий пакет, що хоче `postinstall`, за замовчуванням
-   буде пропущений із warning — і `pnpm approve-builds` покаже, хто це.
-   **pnpm 11 додав ще дефолти:** `blockExoticSubdeps` (блок transitive-залежностей
-   з git/tarball-джерел) і `trustPolicy` (`no-downgrade` — не ставити пакет, чий
-   рівень довіри впав проти попередніх релізів). Тобто pnpm 11 з коробки жорсткіший
-   за будь-який ручний npm-флаг.
+## Hardening — install scripts as the attack vector
 
-2. **Cooldown — на pnpm 11+ ДЕФОЛТ (увімкнено).** Компрометовані релізи
-   зазвичай виявляють і знімають за години. `minimumReleaseAge` не дає ставити
-   версії, молодші за N хвилин. **pnpm 11 (кв. 2026) робить це дефолтом:
-   `1440` хв = 24 год.** До v11 було `0`. Юзер на pnpm 11.2.2 → активно з коробки.
+The worm enters the system not through the mere act of `install`, but through a
+package's **lifecycle script** that runs automatically. Three levels of defense
+(from soft to paranoid):
 
-   Явно закріпити (робить незалежним від версії/downgrade):
-   `pnpm config set minimumReleaseAge 1440`. Вимкнути: `minimumReleaseAge=0`.
-   Разовий bypass одного пакета (напр. критичний хотфікс): `minimumReleaseAgeExclude`.
+1. **Default (already active).** pnpm 10+ does not run dependency build scripts
+   outside the allowlist. In P1 CRM the allowlist is `pnpm-workspace.yaml →
+   allowBuilds` (`core-js`, `esbuild`). A new package that wants a `postinstall`
+   is skipped by default with a warning — and `pnpm approve-builds` shows who it
+   is. **pnpm 11 added more defaults:** `blockExoticSubdeps` (blocks transitive
+   deps from git/tarball sources) and `trustPolicy` (`no-downgrade` — won't
+   install a package whose trust level dropped vs earlier releases). So pnpm 11
+   is stricter out of the box than any manual npm flag.
 
-3. **`--ignore-scripts` (ядерна опція).** Разова недовіра до конкретного
-   встановлення — блокує **всі** скрипти, зокрема allowlist і власні
-   `prepare`/`postinstall` проєкту:
+2. **Cooldown — default ON in pnpm 11+.** Compromised releases are usually
+   detected and pulled within hours. `minimumReleaseAge` won't install versions
+   younger than N minutes. **pnpm 11 (Apr 2026) makes this a default: `1440`
+   min = 24h.** Before v11 it was `0`. The user is on pnpm 11.2.2 → active out of
+   the box.
+
+   Pin it explicitly (makes it version-/downgrade-independent):
+   `pnpm config set minimumReleaseAge 1440`. Disable: `minimumReleaseAge=0`.
+   One-off bypass for a single package (e.g. a critical hotfix): `minimumReleaseAgeExclude`.
+
+3. **`--ignore-scripts` (nuclear option).** One-off distrust of a specific
+   install — blocks **all** scripts, including the allowlist and the project's
+   own `prepare`/`postinstall`:
 
    ```
    pnpm install --ignore-scripts
    ```
 
-   Мінус: якщо проєкту реально потрібен build-крок (esbuild), його доведеться
-   виконати вручну. Тому це не default, а свідомий вибір для підозрілого пакета.
+   Downside: if the project genuinely needs a build step (esbuild), you run it
+   manually. That's why it's not a default, but a conscious choice for a
+   suspicious package.
 
-Правило залишається: **npm заборонено повністю** (він запускає скрипти без
-питань). pnpm — дозволений, бо default безпечний; ці три рівні — як зробити
-його ще жорсткішим за потреби.
+The rule stands: **npm is fully blocked** (it runs scripts without asking).
+pnpm is allowed because its default is safe; these levels are how to make it
+even stricter when needed.
 
-## Виключення (НЕ блокувати)
+## Hard layer — `block-npm.js`
 
-- `pnpm` сам по собі (`pnpm` ≠ `npm` як окреме слово — hook враховує word boundary).
-- Слово `npm` всередині рядкових літералів у коді (`"npm" in package.json`) —
-  обробляється regex hook-а.
-- Згадки `npm` / `yarn` у markdown / коментарях / документації.
-- Команди де `npm` є частиною іншого імені: `npmlock`, `pnpm-install`, `unpm` тощо.
+The hook `~/.claude/hooks/block-npm.js` is registered in `~/.claude/settings.json`
+as a PreToolUse hook for Bash. It blocks with exit code 2 and an ANSI-bold
+message. If I ever forget this instruction, the hook still catches it.
 
-## Жорсткий шар — `block-npm.js`
+## How to disable the rule
 
-Hook `~/.claude/hooks/block-npm.js` зареєстрований у `~/.claude/settings.json`
-як PreToolUse для Bash. Він блокує запуск з exit code 2 і ANSI-bold-повідомленням.
-Якщо я колись забуду цю інструкцію — hook все одно зловить.
-
-## Як знімати правило
-
-В одному конкретному випадку: користувач сам запускає команду у власному
-терміналі (поза Claude Code), або тимчасово коментує hook у
-`~/.claude/settings.json` (не рекомендую). Це **глобальне правило**, не
-пов'язане з одним проектом.
+In one specific case: the user runs the command themselves in their own terminal
+(outside Claude Code), or temporarily comments out the hook in
+`~/.claude/settings.json` (not recommended). This is a **global rule**, not tied
+to a single project.

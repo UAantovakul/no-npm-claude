@@ -29,17 +29,23 @@ Common vector: malicious code runs during the `preinstall` / `install` /
 checks. This is exactly what `npm i --ignore-scripts` disables — and it is
 why npm (which runs those scripts without asking) is the problem.
 
-pnpm v10+ closes the **primary** vector **by default**:
+pnpm closes both vectors **by default** — and pnpm 11 (April 2026) turned the
+cooldown on out of the box:
 
 | pnpm behavior | Status | What it does |
 |---|---|---|
-| Dep build scripts blocked outside allowlist | **default ON** | Lifecycle scripts of dependencies are **not** run unless the package is in `onlyBuiltDependencies` / `allowBuilds` (`pnpm-workspace.yaml`). Review pending ones with `pnpm approve-builds`. |
+| Dep build scripts blocked outside allowlist | **default (v10+)** | Lifecycle scripts of dependencies are **not** run unless the package is in `onlyBuiltDependencies` / `allowBuilds` (`pnpm-workspace.yaml`). Review pending ones with `pnpm approve-builds`. |
+| `minimumReleaseAge: 1440` | **default (v11+)** | Won't install versions younger than 1440 min (24h) — malware is usually detected and pulled within hours. Was `0` (opt-in) before v11. Opt out with `minimumReleaseAge: 0`; bypass one package with `minimumReleaseAgeExclude`. |
+| `blockExoticSubdeps` | **default (v11+)** | Blocks transitive deps pulled from git repos / tarball URLs. |
+| `trustPolicy: no-downgrade` | **default (v11+)** | Won't install a package whose trust level dropped vs earlier releases. |
 | `strictDepBuilds: true` | opt-in | Turns the skipped-build warning into a hard **error**. |
-| `minimumReleaseAge: 1440` | **opt-in** (NOT default) | Delays installing versions younger than N minutes (malware is usually detected and pulled within hours). Enable with `pnpm config set minimumReleaseAge 1440`. |
 | `pnpm install --ignore-scripts` | manual | Nuclear option — blocks **all** scripts, including the allowlist. Use for a package you don't trust. |
 
-> ⚠️ Earlier versions of this README listed `minimumReleaseAge` as a pnpm
-> default. It is **not** — it must be enabled explicitly. Corrected.
+> ℹ️ `pnpm config get minimumReleaseAge` returns `undefined` when you rely on
+> the built-in v11 default — `config get` only echoes *explicit* config, not
+> defaults. The cooldown is still active. Pin it explicitly (version-independent)
+> with `pnpm config set minimumReleaseAge 1440`.
+> Source: [pnpm settings](https://pnpm.io/settings) — *"Default: 1440 (since v11)"*.
 
 This repo enforces "pnpm only" inside Claude Code, where the agent might
 otherwise run `npm install` autonomously.
@@ -92,8 +98,9 @@ node install.js
 2. Merges the hook entry into `~/.claude/settings.json` under
    `PreToolUse → Bash`. Idempotent — existing hooks are preserved, no
    duplicates on re-run.
-3. Sets the pnpm supply-chain cooldown `minimumReleaseAge=1440` (24h) — but
-   only if pnpm is present and the value is not already set. Skipped
+3. Pins the pnpm cooldown `minimumReleaseAge=1440` (24h) explicitly — pnpm 11+
+   already defaults this, but an explicit value is version-independent (survives
+   a downgrade to pnpm 10). Only if pnpm is present and not already set; skipped
    silently if pnpm is missing.
 4. Runs a smoke test (`npm install` must produce `exit 2`).
 
@@ -215,8 +222,8 @@ If I (or the user) want to run an npm/npx/yarn command:
 
 Reason: a chain of npm supply-chain attacks (Shai-Hulud 2025-2026). The
 vector is auto-run lifecycle scripts. npm runs them without asking; pnpm
-blocks dependency build scripts outside its allowlist by default, and can
-add a version cooldown via `pnpm config set minimumReleaseAge 1440`.
+blocks dependency build scripts outside its allowlist by default, and pnpm 11+
+also defaults to a 24h version cooldown (minimumReleaseAge=1440) + blockExoticSubdeps.
 ```
 
 Where to paste it:
@@ -282,10 +289,11 @@ occur.
 ## Related reading
 
 - [pnpm — Mitigating supply chain attacks](https://pnpm.io/supply-chain-security)
+- [pnpm 11.0 release — supply-chain protection on by default](https://pnpm.io/blog/releases/11.0) *(minimumReleaseAge=1440 + blockExoticSubdeps, April 2026)*
 - [CISA — Widespread Supply Chain Compromise Impacting npm Ecosystem](https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem)
 - [Microsoft Security — Shai-Hulud 2.0](https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/)
 - [Palo Alto Unit 42 — "Shai-Hulud" Worm Compromises npm Ecosystem](https://unit42.paloaltonetworks.com/npm-supply-chain-attack/)
-- [Anthropic — Claude Code documentation](https://docs.claude.com/en/docs/claude-code)
+- [Anthropic — Claude Code documentation](https://code.claude.com/docs)
 
 ---
 Maintained by [@UAantovakul](https://github.com/UAantovakul).

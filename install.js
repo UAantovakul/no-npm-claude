@@ -56,9 +56,11 @@ if (bash.hooks.some((h) => h && typeof h.command === 'string' && h.command.inclu
   console.log('[2/4] hook registered in settings.json (PreToolUse -> Bash)');
 }
 
-// [3/4] pnpm cooldown — best-effort, respects an existing value ----------------
-// Pass the command as a single shell string (no args array) to avoid Node's
-// DEP0190 warning; every argument here is a fixed constant, so nothing to escape.
+// [3/4] pin pnpm cooldown explicitly -----------------------------------------
+// pnpm 11+ ALREADY defaults minimumReleaseAge to 1440, but `config get` won't
+// surface the built-in default, and an explicit value is version-independent
+// (survives a downgrade to pnpm 10). Best-effort; a fixed constant, nothing to
+// escape — pass a single shell string to avoid Node's DEP0190 (shell + args).
 const pnpm = (argStr) => spawnSync(`pnpm ${argStr}`, { shell: true, encoding: 'utf8' });
 if (pnpm('--version').status !== 0) {
   console.log('[3/4] pnpm not found — skipped cooldown. After installing pnpm, run:');
@@ -66,13 +68,13 @@ if (pnpm('--version').status !== 0) {
 } else {
   const cur = (pnpm('config get minimumReleaseAge').stdout || '').trim();
   if (cur && cur !== 'undefined') {
-    console.log(`[3/4] pnpm cooldown already set (minimumReleaseAge=${cur}) — left as is`);
+    console.log(`[3/4] cooldown already pinned (minimumReleaseAge=${cur}) — left as is`);
   } else {
     const set = pnpm(`config set minimumReleaseAge ${COOLDOWN_MIN}`);
     console.log(
       set.status === 0
-        ? `[3/4] pnpm cooldown set (minimumReleaseAge=${COOLDOWN_MIN} = 24h)`
-        : `[3/4] WARN: could not set cooldown — run 'pnpm config set minimumReleaseAge ${COOLDOWN_MIN}' manually`
+        ? `[3/4] pinned minimumReleaseAge=${COOLDOWN_MIN} (24h) — pnpm 11+ already defaults this`
+        : `[3/4] WARN: could not pin cooldown — run 'pnpm config set minimumReleaseAge ${COOLDOWN_MIN}' manually`
     );
   }
 }

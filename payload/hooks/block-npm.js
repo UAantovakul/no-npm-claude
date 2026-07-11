@@ -9,9 +9,9 @@ try {
   const input = JSON.parse(fs.readFileSync(0, 'utf8'));
   const cmd = (input.tool_input && input.tool_input.command) || '';
 
-  // Word-boundary regex: matches npm/npx/yarn as a standalone word.
-  // Does NOT match pnpm, pnpx, npmlock, yarnpkg-foo, etc.
-  // Allows leading position, whitespace, ;, &&, ||, |, (, $(, newline.
+  // Word-boundary regex: ловить npm/npx/yarn як окреме слово.
+  // Не ловить pnpm, pnpx, npmlock, yarnpkg-foo тощо.
+  // Дозволяє на початку рядка, після пробілу, ;, &&, ||, |, (, $(, новий рядок.
   const NPM_RE = /(^|[\s;&|()`]|\$\()(npm|npx|yarn)(\s|$|[;&|`)])/;
 
   const match = cmd.match(NPM_RE);
@@ -25,7 +25,7 @@ try {
     'npm install': 'pnpm install',
     'npm i': 'pnpm install',
     'npm ci': 'pnpm install --frozen-lockfile',
-    'npm run': 'pnpm <script>  (or pnpm run <script>)',
+    'npm run': 'pnpm <script>  (або pnpm run <script>)',
     'npm test': 'pnpm test',
     'npm uninstall': 'pnpm remove',
     'npm rm': 'pnpm remove',
@@ -50,20 +50,21 @@ try {
 
   const banner = [
     '',
-    `${BOLD}${RED}⛔ NPM / NPX / YARN BLOCKED IN THIS ENVIRONMENT.${RESET}`,
-    `${BOLD}${RED}   USE pnpm INSTEAD.${RESET}`,
+    `${BOLD}${RED}⛔ NPM / NPX / YARN ЗАБОРОНЕНО У ЦЬОМУ ОТОЧЕННІ.${RESET}`,
+    `${BOLD}${RED}   ВИКОРИСТОВУЙ pnpm.${RESET}`,
     '',
-    `${BOLD}Why:${RESET} the npm ecosystem suffered a series of supply-chain attacks (Shai-Hulud 2025/2026).`,
-    `     pnpm v11+ blocks lifecycle scripts by default and delays new versions by 24h.`,
+    `${BOLD}Чому:${RESET} npm-екосистема пройшла серію supply-chain атак (Shai-Hulud 2025/2026).`,
+    `      npm запускає lifecycle-скрипти без питань; pnpm за замовчуванням блокує`,
+    `      build-скрипти залежностей поза allowlist. Cooldown (minimumReleaseAge) — opt-in.`,
     '',
-    `${BOLD}${YELLOW}Blocked command:${RESET}`,
+    `${BOLD}${YELLOW}Заблокована команда:${RESET}`,
     `   ${cmd}`,
     '',
-    `${BOLD}${YELLOW}Suggested replacement:${RESET}`,
+    `${BOLD}${YELLOW}Запропонована заміна:${RESET}`,
     `   ${suggestion}`,
     '',
-    `${BOLD}To bypass:${RESET} run the command in your own terminal outside Claude Code,`,
-    `   or temporarily disable the hook in ~/.claude/settings.json (not recommended).`,
+    `${BOLD}Як знімати правило:${RESET} запусти команду у власному терміналі поза Claude Code,`,
+    `   або тимчасово відключи hook у ~/.claude/settings.json (не рекомендую).`,
     '',
   ].join('\n');
 

@@ -24,14 +24,22 @@ The npm ecosystem went through a chain of major supply-chain attacks:
 - **Mini Shai-Hulud** (May 2026) — 170+ npm packages + 2 PyPI packages
 - **PackageGate** (Jan 2026) — six zero-days in npm / pnpm / vlt / Bun
 
-Common vector: malicious code runs during the `preinstall` / `postinstall`
-phase, **before** any tests or security checks. pnpm v11+ ships two
-defenses that close this attack class **by default**:
+Common vector: malicious code runs during the `preinstall` / `install` /
+`postinstall` phase, **automatically**, **before** any tests or security
+checks. This is exactly what `npm i --ignore-scripts` disables — and it is
+why npm (which runs those scripts without asking) is the problem.
 
-| pnpm default | What it does |
-|---|---|
-| `strictDepBuilds: true` | Lifecycle scripts in dependencies are blocked unless explicitly allowed |
-| `minimumReleaseAge: 1440` | New versions are not installed until they are at least 24 hours old (malware is usually detected and pulled within hours) |
+pnpm v10+ closes the **primary** vector **by default**:
+
+| pnpm behavior | Status | What it does |
+|---|---|---|
+| Dep build scripts blocked outside allowlist | **default ON** | Lifecycle scripts of dependencies are **not** run unless the package is in `onlyBuiltDependencies` / `allowBuilds` (`pnpm-workspace.yaml`). Review pending ones with `pnpm approve-builds`. |
+| `strictDepBuilds: true` | opt-in | Turns the skipped-build warning into a hard **error**. |
+| `minimumReleaseAge: 1440` | **opt-in** (NOT default) | Delays installing versions younger than N minutes (malware is usually detected and pulled within hours). Enable with `pnpm config set minimumReleaseAge 1440`. |
+| `pnpm install --ignore-scripts` | manual | Nuclear option — blocks **all** scripts, including the allowlist. Use for a package you don't trust. |
+
+> ⚠️ Earlier versions of this README listed `minimumReleaseAge` as a pnpm
+> default. It is **not** — it must be enabled explicitly. Corrected.
 
 This repo enforces "pnpm only" inside Claude Code, where the agent might
 otherwise run `npm install` autonomously.
@@ -115,8 +123,8 @@ Expected response — a warning in **bold** that looks like this:
 > **USE pnpm INSTEAD.**
 >
 > Why: the npm ecosystem suffered a series of supply-chain attacks
-> (Shai-Hulud 2025/2026). pnpm v11+ blocks lifecycle scripts by default
-> and delays new versions by 24h.
+> (Shai-Hulud 2025/2026). npm runs lifecycle scripts without asking;
+> pnpm blocks dependency build scripts outside its allowlist by default.
 >
 > Blocked command: `npm install`
 > Suggested replacement: `npm install → pnpm install`
@@ -214,16 +222,19 @@ If I (or the user) want to run an npm/npx/yarn command:
 2. Issue a warning in BOLD letters:
    **⛔ NPM IS BLOCKED IN THIS ENVIRONMENT. Use pnpm instead.**
 3. Offer the pnpm equivalent:
-   npm i           -> pnpm install
-   npm i <pkg>     -> pnpm add <pkg>
-   npm run <s>     -> pnpm <s>
-   npx <pkg>       -> pnpm dlx <pkg>
-   yarn add <pkg>  -> pnpm add <pkg>
+   npm i                 -> pnpm install
+   npm i <pkg>           -> pnpm add <pkg>
+   npm run <s>           -> pnpm <s>
+   npx <pkg>             -> pnpm dlx <pkg>
+   yarn add <pkg>        -> pnpm add <pkg>
+   npm i --ignore-scripts-> pnpm install --ignore-scripts
+   npm audit             -> pnpm audit
 4. Ask the user to confirm before running the pnpm variant.
 
-Reason: a chain of npm supply-chain attacks (Shai-Hulud 2025-2026).
-pnpm v11+ blocks lifecycle scripts and delays installation of fresh
-versions by 24 hours, which neutralizes the primary attack vectors.
+Reason: a chain of npm supply-chain attacks (Shai-Hulud 2025-2026). The
+vector is auto-run lifecycle scripts. npm runs them without asking; pnpm
+blocks dependency build scripts outside its allowlist by default, and can
+add a version cooldown via `pnpm config set minimumReleaseAge 1440`.
 ```
 
 Where to paste it:

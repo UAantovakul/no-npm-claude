@@ -1,50 +1,48 @@
 ---
 name: no-npm
-description: |
-  Block every `npm`, `npx`, and `yarn` Bash/PowerShell invocation in Claude Code.
-  If the user (or Claude itself) tries to run an npm-family command, issue a
-  warning in BOLD letters and suggest the pnpm equivalent. This skill is the
-  soft layer that pairs with the hard PreToolUse hook `block-npm.js`, which
-  blocks the command at the harness level.
-  Triggers: any command starting with `npm`, `npx`, or `yarn` as a standalone word.
+description: Блокувати npm/npx/yarn — пропонувати pnpm-еквівалент. Тригери: команда з npm/npx/yarn як окреме слово.
 ---
 
-# no-npm — block npm/npx/yarn, pnpm only
+# no-npm — Заборона npm/npx/yarn, тільки pnpm
 
-## Why this skill exists
+## Чому існує цей skill
 
-The npm ecosystem went through a series of major supply-chain attacks
-(Shai-Hulud Sep 2025, Shai-Hulud 2.0 Nov 2025, Mini Shai-Hulud May 2026,
-PackageGate Jan 2026). pnpm v11+ blocks lifecycle scripts by default
-(`strictDepBuilds`) and delays installation of fresh versions by 24 hours
-(`minimumReleaseAge: 1440`) — that closes the primary attack vectors.
+npm-екосистема пройшла через серію масштабних supply-chain атак
+(Shai-Hulud вересень 2025, Shai-Hulud 2.0 листопад 2025, Mini Shai-Hulud
+травень 2026). Спільний вектор усіх трьох — **lifecycle-скрипти** пакета
+(`preinstall` / `install` / `postinstall`), які менеджер запускає
+**автоматично** під час встановлення. Саме тут спрацьовує черв'як.
 
-Global user decision: **no npm/npx/yarn in this environment**.
+pnpm 10+ за замовчуванням **НЕ** запускає build-скрипти залежностей поза
+явним allowlist (`onlyBuiltDependencies` / `allowBuilds` у
+`pnpm-workspace.yaml`) — лише виводить warning. Це закриває головний вектор.
+npm же запускає **все** без питань — тому npm заборонено, а pnpm — ні.
 
-## What to do when you see npm/npx/yarn in planning
+> ⚠️ **Важливо (виправлено):** pnpm за замовчуванням **не** відкладає свіжі
+> версії на 24 години. `minimumReleaseAge` — **opt-in**, і якщо ти хочеш цей
+> cooldown, його треба явно ввімкнути (див. розділ «Hardening»). Раніше цей
+> файл стверджував протилежне — це було неточно.
 
-**Before running Bash/PowerShell** — if I (Claude) am about to run a command
-containing `npm`, `npx`, or `yarn` as a standalone word:
+Глобальне рішення користувача: **жодних npm/npx/yarn у цьому оточенні**.
 
-1. **Do not run it.**
-2. Emit a warning to the user in this shape:
+## Коли зʼявляється npm/npx/yarn (від мене чи від користувача)
 
-   > **⛔ NPM IS BLOCKED IN THIS ENVIRONMENT.**
-   > **Use pnpm instead.**
+Тільки-но команда містить `npm`, `npx` або `yarn` як окреме слово — байдуже,
+я (Claude) збираюся її запустити чи користувач сам про неї просить:
 
-3. Offer the pnpm equivalent and ask for confirmation before running.
+1. **НЕ запускати.**
+2. Видати попередження:
 
-## If the request came from the user
+   > **⛔ NPM ЗАБОРОНЕНО У ЦЬОМУ ОТОЧЕННІ. Використовуй pnpm.**
 
-If the user types something like "run `npm install`":
+3. Запропонувати pnpm-еквівалент (таблиця нижче) і запитати підтвердження
+   перед запуском.
 
-1. Do not execute the command directly.
-2. Respond with a bold warning and the pnpm equivalent.
-3. Ask: should I run the pnpm variant, or do you really need npm
-   specifically? (In that case the user must run the command manually in
-   their own terminal — the hook will block it via Bash either way.)
+Якщо користувач справді потребує саме npm — він виконує команду вручну у
+власному терміналі поза Claude Code; hook `block-npm.js` все одно заблокує
+спробу через Bash.
 
-## Equivalents table
+## Таблиця еквівалентів
 
 | npm / npx / yarn | pnpm |
 |---|---|
@@ -54,7 +52,7 @@ If the user types something like "run `npm install`":
 | `npm install -g <pkg>` | `pnpm add -g <pkg>` |
 | `npm uninstall <pkg>` / `npm rm <pkg>` | `pnpm remove <pkg>` |
 | `npm update` | `pnpm update` |
-| `npm run <script>` | `pnpm <script>` (or `pnpm run <script>`) |
+| `npm run <script>` | `pnpm <script>` (або `pnpm run <script>`) |
 | `npm test` | `pnpm test` |
 | `npm ci` | `pnpm install --frozen-lockfile` |
 | `npx <pkg>` | `pnpm dlx <pkg>` |
@@ -65,27 +63,72 @@ If the user types something like "run `npm install`":
 | `yarn remove <pkg>` | `pnpm remove <pkg>` |
 | `yarn <script>` | `pnpm <script>` |
 
-## Exclusions (do NOT block)
+### Security / maintenance (їх часто забувають, а вони найкорисніші)
 
-- `pnpm` itself (the word-boundary regex distinguishes `pnpm` from `npm`).
-- The word `npm` inside string literals in source code (e.g. `"npm" in
-  package.json`) — handled at the regex layer.
-- Mentions of `npm` / `yarn` in markdown / comments / documentation.
-- Commands where `npm` is a substring of another identifier: `npmlock`,
-  `pnpm-install`, `unpm`, etc.
+| npm / npx / yarn | pnpm | Навіщо |
+|---|---|---|
+| `npm i --ignore-scripts` | `pnpm install --ignore-scripts` | блок **усіх** lifecycle-скриптів (навіть allowlist) — головний захист проти Shai-Hulud |
+| `npm audit` | `pnpm audit` | скан вразливостей у дереві залежностей |
+| `npm audit fix` | `pnpm audit --fix` | автопідняти вразливі версії |
+| `npm outdated` | `pnpm outdated` | які пакети застаріли |
+| `npm ls <pkg>` / `npm explain` | `pnpm why <pkg>` | **хто** притягнув залежність (audit-провенанс) |
+| `npm dedupe` | `pnpm dedupe` | схлопнути дублікати у lockfile |
+| `npm i -E <pkg>` | `pnpm add -E <pkg>` | pinned exact-версія (без `^`) |
+| — (немає) | `pnpm approve-builds` | інтерактивний рев'ю: **хто** просить запустити build-скрипт → додати в allowlist свідомо |
 
-## Hard layer — `block-npm.js`
+## Hardening — install-скрипти як вектор атаки
 
-The hook at `~/.claude/hooks/block-npm.js` is registered in
-`~/.claude/settings.json` as a PreToolUse handler for `Bash`. It blocks the
-invocation with `exit 2` and an ANSI-bold message. If I ever forget this
-instruction, the hook will still catch the call.
+Черв'як потрапляє в систему не через сам факт `install`, а через
+**lifecycle-скрипт** пакета, що виконується автоматично. Три рівні захисту
+(від м'якого до параноїдального):
 
-## Disabling the rule
+1. **Default (вже активно).** pnpm 10+ не запускає build-скрипти залежностей
+   поза allowlist. У P1 CRM allowlist — `pnpm-workspace.yaml → allowBuilds`
+   (`core-js`, `esbuild`). Новий пакет, що хоче `postinstall`, за замовчуванням
+   буде пропущений із warning — і `pnpm approve-builds` покаже, хто це.
 
-If you need to run npm in one specific case:
-1. Run the command in your own terminal (outside Claude Code).
-2. Or temporarily comment out the hook in `~/.claude/settings.json` (not
-   recommended).
+2. **Cooldown (opt-in, зараз ВИМКНЕНО).** Компрометовані релізи зазвичай
+   виявляють і знімають за години. `minimumReleaseAge` відкладає встановлення
+   версій, молодших за N хвилин. Увімкнути глобально:
 
-This is a **global** rule, not tied to a single project.
+   ```
+   pnpm config set minimumReleaseAge 1440   # 24 год
+   ```
+
+   Перевірити: `pnpm config get minimumReleaseAge` (зараз → `undefined`).
+
+3. **`--ignore-scripts` (ядерна опція).** Разова недовіра до конкретного
+   встановлення — блокує **всі** скрипти, зокрема allowlist і власні
+   `prepare`/`postinstall` проєкту:
+
+   ```
+   pnpm install --ignore-scripts
+   ```
+
+   Мінус: якщо проєкту реально потрібен build-крок (esbuild), його доведеться
+   виконати вручну. Тому це не default, а свідомий вибір для підозрілого пакета.
+
+Правило залишається: **npm заборонено повністю** (він запускає скрипти без
+питань). pnpm — дозволений, бо default безпечний; ці три рівні — як зробити
+його ще жорсткішим за потреби.
+
+## Виключення (НЕ блокувати)
+
+- `pnpm` сам по собі (`pnpm` ≠ `npm` як окреме слово — hook враховує word boundary).
+- Слово `npm` всередині рядкових літералів у коді (`"npm" in package.json`) —
+  обробляється regex hook-а.
+- Згадки `npm` / `yarn` у markdown / коментарях / документації.
+- Команди де `npm` є частиною іншого імені: `npmlock`, `pnpm-install`, `unpm` тощо.
+
+## Жорсткий шар — `block-npm.js`
+
+Hook `~/.claude/hooks/block-npm.js` зареєстрований у `~/.claude/settings.json`
+як PreToolUse для Bash. Він блокує запуск з exit code 2 і ANSI-bold-повідомленням.
+Якщо я колись забуду цю інструкцію — hook все одно зловить.
+
+## Як знімати правило
+
+В одному конкретному випадку: користувач сам запускає команду у власному
+терміналі (поза Claude Code), або тимчасово коментує hook у
+`~/.claude/settings.json` (не рекомендую). Це **глобальне правило**, не
+пов'язане з одним проектом.

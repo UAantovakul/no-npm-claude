@@ -55,9 +55,9 @@ otherwise run `npm install` autonomously.
   invocation; if the command word-matches `npm` / `npx` / `yarn`, it prints
   a bold ANSI-red banner and exits with code `2`, which the harness
   treats as "deny".
-- **Idempotent installer** — re-running `install.ps1` / `install.sh` is
-  safe; it does not duplicate the hook entry and leaves any other hooks
-  (e.g. `block-destructive.js`) intact.
+- **Idempotent installer** — re-running `node install.js` is safe; it does
+  not duplicate the hook entry and leaves any other hooks (e.g.
+  `block-destructive.js`) intact.
 - **No false positives on `pnpm`** — word-boundary regex distinguishes
   `pnpm` from `npm` and `pnpx` from `npx`.
 
@@ -77,37 +77,25 @@ node --version
 
 ## Install
 
-### Windows (PowerShell)
-
-```powershell
-# 1. Extract the release zip
-Expand-Archive .\no-npm-skill-bundle.zip -DestinationPath . -Force
-
-# 2. (If PowerShell blocks unsigned scripts) allow scripts for this session only
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-
-# 3. Install
-cd .\no-npm-skill-bundle
-.\install.ps1
-```
-
-### macOS / Linux
+One command, every platform (Windows / macOS / Linux):
 
 ```bash
-unzip no-npm-skill-bundle.zip
-cd no-npm-skill-bundle
-chmod +x install.sh
-./install.sh
+git clone https://github.com/UAantovakul/no-npm-claude.git
+cd no-npm-claude
+node install.js
 ```
 
 ### What the installer does
 
-1. Checks that Node.js is available.
-2. Creates `~/.claude/skills/no-npm/` and `~/.claude/hooks/` if they do not exist.
-3. Copies `SKILL.md` and `block-npm.js` to those directories.
-4. Merges the hook entry into `~/.claude/settings.json` under
-   `PreToolUse → Bash`. Existing hooks are preserved.
-5. Runs a smoke test (`npm install` should produce `exit 2`).
+1. Copies `SKILL.md` and `block-npm.js` into `~/.claude/skills/no-npm/`
+   and `~/.claude/hooks/`.
+2. Merges the hook entry into `~/.claude/settings.json` under
+   `PreToolUse → Bash`. Idempotent — existing hooks are preserved, no
+   duplicates on re-run.
+3. Sets the pnpm supply-chain cooldown `minimumReleaseAge=1440` (24h) — but
+   only if pnpm is present and the value is not already set. Skipped
+   silently if pnpm is missing.
+4. Runs a smoke test (`npm install` must produce `exit 2`).
 
 ---
 
@@ -144,15 +132,13 @@ echo $?    # should print 2
 ## Uninstall
 
 ```bash
-# Windows
-.\uninstall.ps1
-
-# macOS / Linux
-./uninstall.sh
+node uninstall.js
 ```
 
 Removes the hook entry from `settings.json` (other hooks untouched), then
-deletes `~/.claude/skills/no-npm/` and `~/.claude/hooks/block-npm.js`.
+deletes `~/.claude/skills/no-npm/` and `~/.claude/hooks/block-npm.js`. The
+pnpm cooldown is left in place — remove it yourself if you want it gone:
+`pnpm config delete minimumReleaseAge`.
 
 ---
 
@@ -191,15 +177,11 @@ The hook prints to **stderr** and uses **exit codes**:
 ## Bundle layout
 
 ```
-no-npm-skill-bundle/
+no-npm-claude/
 ├── README.md                       — this file
 ├── LICENSE                         — MIT
-├── install.ps1                     — Windows installer
-├── install.sh                      — macOS/Linux installer
-├── uninstall.ps1
-├── uninstall.sh
-├── install-hook.js                 — cross-platform JSON merger
-├── uninstall-hook.js               — cross-platform JSON cleaner
+├── install.js                      — cross-platform installer (Node only)
+├── uninstall.js                    — cross-platform uninstaller (Node only)
 └── payload/
     ├── skills/no-npm/SKILL.md      — the skill
     └── hooks/block-npm.js          — the hook
